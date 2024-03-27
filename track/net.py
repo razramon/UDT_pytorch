@@ -11,6 +11,8 @@ def complex_mul(x, z):
 
 
 def complex_mulconj(x, z):
+    x = torch.view_as_real(x)
+    z = torch.view_as_real(z)
     out_real = x[..., 0] * z[..., 0] + x[..., 1] * z[..., 1]
     out_imag = x[..., 1] * z[..., 0] - x[..., 0] * z[..., 1]
     return torch.stack((out_real, out_imag), -1)
@@ -40,9 +42,9 @@ class DCFNet(nn.Module):
 
     def forward(self, x):
         x = self.feature(x) * self.config.cos_window
-        xf = torch.rfft(x, signal_ndim=2)
+        xf = torch.torch.fft.rfft2(x)
         kxzf = torch.sum(complex_mulconj(xf, self.model_zf), dim=1, keepdim=True)
-        response = torch.irfft(complex_mul(kxzf, self.model_alphaf), signal_ndim=2)
+        response = torch.fft.irfft2(torch.view_as_complex(complex_mul(kxzf, self.model_alphaf)))
         # r_max = torch.max(response)
         # cv2.imshow('response', response[0, 0].data.cpu().numpy())
         # cv2.waitKey(0)
@@ -50,8 +52,8 @@ class DCFNet(nn.Module):
 
     def update(self, z, lr=1.):
         z = self.feature(z) * self.config.cos_window
-        zf = torch.rfft(z, signal_ndim=2)
-        kzzf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True)
+        zf = torch.torch.fft.rfft2(z)
+        kzzf = torch.sum(torch.sum(torch.view_as_real(zf) ** 2, dim=4, keepdim=True), dim=1, keepdim=True)
         alphaf = self.config.yf / (kzzf + self.config.lambda0)
         if lr > 0.99:
             self.model_alphaf = alphaf
